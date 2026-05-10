@@ -1,7 +1,8 @@
-from app.repositories.base import BaseRepository
-from app.models.location import House
-from sqlalchemy.orm import Session
 from fastapi import HTTPException
+from sqlalchemy.orm import Session
+
+from app.models.location import House
+from app.repositories.base import BaseRepository
 
 
 class HouseRepository(BaseRepository[House]):
@@ -14,7 +15,7 @@ class HouseRepository(BaseRepository[House]):
             raise HTTPException(404, "House not found")
 
         for key, value in house_data.items():
-            if value is not None:  # Обновляем только то, что передали
+            if value is not None:
                 setattr(house, key, value)
 
         self.db.commit()
@@ -26,20 +27,22 @@ class HouseRepository(BaseRepository[House]):
         if not house:
             raise HTTPException(404, "House not found")
 
-        # Проверка на наличие зависимостей (жильцы/заявки)
-        # Если не проверить, SQLAlchemy всё равно выкинет IntegrityError,
-        # но лучше сделать это явно и вернуть понятную ошибку.
-        if house.tickets or house.users:  # (нужно чтобы в модели House была связь users)
-            # Если связи users нет в модели, то проверка только по tickets
-            # Либо поймать исключение IntegrityError при удалении
-            pass
+        has_dependencies = any([
+            bool(house.tickets),
+            bool(house.users),
+            bool(house.events),
+            bool(house.emergency_contacts),
+            bool(house.schedules),
+            bool(house.entrances),
+            bool(house.apartments),
+        ])
 
-        try:
-            self.db.delete(house)
-            self.db.commit()
-        except Exception as e:
-            self.db.rollback()
-            # Скорее всего это IntegrityError (есть жильцы)
-            raise HTTPException(400, "Cannot delete house with residents or tickets")
+        if has_dependencies:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete house with linked users, tickets, entrances, apartments or house info"
+            )
 
+        self.db.delete(house)
+        self.db.commit()
         return {"status": "deleted"}

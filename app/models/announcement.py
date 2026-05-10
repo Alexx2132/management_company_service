@@ -1,6 +1,8 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text
-from sqlalchemy.orm import relationship
 from datetime import datetime
+
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
 from app.db.base import Base
 
 
@@ -12,8 +14,14 @@ class Announcement(Base):
     content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # Если NULL — объявление для всех. Если есть ID — только для этого дома.
+    # NULL means the announcement is visible to all houses.
     target_house_id = Column(Integer, ForeignKey("houses.id"), nullable=True)
+    # NULL means the announcement is visible to all entrances of the selected house.
+    target_entrance_id = Column(Integer, ForeignKey("house_entrances.id"), nullable=True)
 
-    # Автор объявления (обычно Админ или Диспетчер)
     author_id = Column(Integer, ForeignKey("users.id"))
+    is_important = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
+
+    house = relationship("House", foreign_keys=[target_house_id])
+    entrance = relationship("HouseEntrance", foreign_keys=[target_entrance_id])

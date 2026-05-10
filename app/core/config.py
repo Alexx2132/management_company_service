@@ -1,4 +1,4 @@
-import os
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 
@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    FCM_SERVICE_ACCOUNT_FILE: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("FCM_SERVICE_ACCOUNT_FILE", "fcm_service_account_file"),
+    )
 
     @property
     def DATABASE_URL(self) -> str:
@@ -19,6 +23,8 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        case_sensitive = False
+        extra = "ignore"
 
 
 settings = Settings()

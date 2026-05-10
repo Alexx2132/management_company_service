@@ -25,7 +25,20 @@ def create_category(
 
 
 @router.get("/", response_model=List[CategoryResponse])
-def read_categories(db: Session = Depends(get_db)):
+def read_categories(category_type: str | None = "problem", db: Session = Depends(get_db)):
     """Получить список всех категорий (Доступно всем)"""
     service = CategoryService(db)
-    return service.get_all()
+    return service.get_all(category_type=category_type)
+
+
+@router.delete("/{category_id}")
+def delete_category(
+        category_id: int,
+        db: Session = Depends(get_db),
+        current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+
+    service = CategoryService(db)
+    return service.delete_category(category_id)
