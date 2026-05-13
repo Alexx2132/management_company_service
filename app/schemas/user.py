@@ -24,6 +24,12 @@ class UserBase(BaseModel):
     apartment: str | None = None
     can_manage_houses: bool = False
     can_ban_residents: bool = False
+    can_create_users: bool = False
+    can_manage_executor_schedules: bool = False
+    can_manage_service_settings: bool = False
+    can_manage_remarks: bool = False
+    can_manage_house_info: bool = False
+    can_manage_announcements: bool = False
 
 
 class UserCreate(UserBase):
@@ -68,3 +74,9 @@ class UserAdminUpdate(BaseModel):
     apartment: str | None = None
     can_manage_houses: bool | None = None
     can_ban_residents: bool | None = None
+    can_create_users: bool | None = None
+    can_manage_executor_schedules: bool | None = None
+    can_manage_service_settings: bool | None = None
+    can_manage_remarks: bool | None = None
+    can_manage_house_info: bool | None = None
+    can_manage_announcements: bool | None = None

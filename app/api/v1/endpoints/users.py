@@ -16,6 +16,7 @@ from app.schemas.user import (
     UserUpdate,
 )
 from app.services.user_service import UserService
+from app.services.permissions import can_create_users, is_staff_like
 
 router = APIRouter()
 
@@ -26,11 +27,11 @@ def create_user(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Only admin can create users")
+    if not can_create_users(current_user):
+        raise HTTPException(status_code=403, detail="Not enough permissions to create users")
 
     user_service = UserService(db)
-    return user_service.create_user(user_in)
+    return user_service.create_user(user_in, current_user)
 
 
 @router.post("/me/password")
@@ -102,7 +103,7 @@ def read_all_users(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+    if not is_staff_like(current_user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
     if current_user.role == UserRole.DISPATCHER:
@@ -128,7 +129,7 @@ def read_residents(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+    if not is_staff_like(current_user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
     q = db.query(User).filter(User.role == UserRole.RESIDENT)
@@ -153,7 +154,7 @@ def read_executors(
         db: Session = Depends(get_db),
         current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+    if not is_staff_like(current_user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
     effective_house_id = house_id

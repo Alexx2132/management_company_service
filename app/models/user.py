@@ -8,6 +8,7 @@ from app.db.base import Base
 
 class UserRole(str, enum.Enum):
     ADMIN = "admin"
+    ADMIN_ASSISTANT = "admin_assistant"
     DISPATCHER = "dispatcher"
     EXECUTOR = "executor"
     RESIDENT = "resident"
@@ -35,6 +36,12 @@ class User(Base):
     specialty = Column(String, nullable=True)
     can_manage_houses = Column(Boolean, nullable=False, default=False)
     can_ban_residents = Column(Boolean, nullable=False, default=False)
+    can_create_users = Column(Boolean, nullable=False, default=False)
+    can_manage_executor_schedules = Column(Boolean, nullable=False, default=False)
+    can_manage_service_settings = Column(Boolean, nullable=False, default=False)
+    can_manage_remarks = Column(Boolean, nullable=False, default=False)
+    can_manage_house_info = Column(Boolean, nullable=False, default=False)
+    can_manage_announcements = Column(Boolean, nullable=False, default=False)
 
     house_id = Column(Integer, ForeignKey("houses.id"), nullable=True)
     apartment_id = Column(Integer, ForeignKey("apartments.id"), nullable=True, index=True)

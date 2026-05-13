@@ -20,14 +20,13 @@ from app.schemas.location import (
     HouseWithStructureCreateRequest,
 )
 from app.services.house_service import HouseService
+from app.services.permissions import can_manage_houses
 
 router = APIRouter()
 
 
 def _ensure_house_manager(current_user: User):
-    if current_user.role == UserRole.ADMIN:
-        return
-    if current_user.role == UserRole.DISPATCHER and bool(current_user.can_manage_houses):
+    if can_manage_houses(current_user):
         return
     raise HTTPException(status_code=403, detail="Not enough permissions")
 

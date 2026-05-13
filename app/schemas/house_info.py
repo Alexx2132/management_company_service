@@ -78,6 +78,8 @@ class HouseScheduleBase(BaseModel):
     schedule_type: HouseScheduleType
     starts_at: datetime | None = None
     ends_at: datetime | None = None
+    start_time: str | None = None
+    end_time: str | None = None
     frequency_text: str | None = None
     is_active: bool = True
 
@@ -93,6 +95,8 @@ class HouseScheduleUpdate(BaseModel):
     schedule_type: HouseScheduleType | None = None
     starts_at: datetime | None = None
     ends_at: datetime | None = None
+    start_time: str | None = None
+    end_time: str | None = None
     frequency_text: str | None = None
     is_active: bool | None = None
 

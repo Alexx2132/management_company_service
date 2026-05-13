@@ -13,6 +13,7 @@ from app.schemas.operations import (
     OperationsDashboardResponse,
 )
 from app.services.operations_service import OperationsService
+from app.services.permissions import is_staff_like
 
 router = APIRouter()
 
@@ -23,7 +24,7 @@ def get_operations_dashboard(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role not in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+    if not is_staff_like(current_user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
     service = OperationsService(db)
@@ -36,7 +37,7 @@ def get_executor_load(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role not in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+    if not is_staff_like(current_user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
     service = OperationsService(db)
@@ -51,7 +52,7 @@ def get_executor_recommendations(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if current_user.role not in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+    if not is_staff_like(current_user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
     service = OperationsService(db)

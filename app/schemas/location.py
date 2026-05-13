@@ -73,6 +73,7 @@ class ApartmentResponse(ApartmentBase):
     id: int
     house_id: int
     entrance_id: int
+    entrance_number: int | None = None
     created_at: datetime
     unresolved_tickets_count: int = 0
     highest_unresolved_priority: str | None = None

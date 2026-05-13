@@ -68,6 +68,8 @@ class HouseSchedule(Base):
     schedule_type = Column(Enum(HouseScheduleType), nullable=False)
     starts_at = Column(DateTime, nullable=True)
     ends_at = Column(DateTime, nullable=True)
+    start_time = Column(String(8), nullable=True)
+    end_time = Column(String(8), nullable=True)
     frequency_text = Column(String, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

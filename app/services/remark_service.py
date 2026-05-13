@@ -7,6 +7,7 @@ from app.models.user import User, UserRole
 from app.models.remark import Remark, RemarkStatus
 from app.repositories.remark_repository import RemarkRepository
 from app.schemas.remark import RemarkCreate
+from app.services.permissions import can_manage_remarks
 
 
 class RemarkService:
@@ -15,7 +16,7 @@ class RemarkService:
         self.repo = RemarkRepository(db)
 
     def _ensure_staff_can_issue(self, user: User):
-        if user.role not in [UserRole.DISPATCHER, UserRole.AUDITOR]:
+        if user.role not in [UserRole.DISPATCHER, UserRole.AUDITOR] and not can_manage_remarks(user):
             raise HTTPException(status_code=403, detail="Only dispatcher or auditor can issue remarks")
 
     def _ensure_recipient_can_view(self, user: User):
@@ -23,7 +24,7 @@ class RemarkService:
             raise HTTPException(status_code=403, detail="Only executor or dispatcher can view own remarks")
 
     def _ensure_auditor_or_admin(self, user: User):
-        if user.role not in [UserRole.AUDITOR, UserRole.ADMIN]:
+        if user.role not in [UserRole.AUDITOR, UserRole.ADMIN] and not can_manage_remarks(user):
             raise HTTPException(status_code=403, detail="Only auditor or admin can view all remarks")
 
     def create_remark(self, data: RemarkCreate, current_user: User) -> Remark:
@@ -78,7 +79,7 @@ class RemarkService:
         if not obj:
             raise HTTPException(status_code=404, detail="Remark not found")
 
-        if current_user.id not in [obj.issuer_id, obj.executor_id] and current_user.role not in [UserRole.AUDITOR, UserRole.ADMIN]:
+        if current_user.id not in [obj.issuer_id, obj.executor_id] and current_user.role not in [UserRole.AUDITOR, UserRole.ADMIN] and not can_manage_remarks(current_user):
             raise HTTPException(status_code=403, detail="Not enough permissions")
 
         return obj

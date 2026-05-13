@@ -7,12 +7,13 @@ from app.api.dependencies import get_current_user, get_db
 from app.models.user import User, UserRole
 from app.schemas.analytics import TicketAnalyticsOverviewResponse
 from app.services.analytics_service import AnalyticsService
+from app.services.permissions import is_staff_like
 
 router = APIRouter()
 
 
 def _ensure_staff(current_user: User):
-    if current_user.role not in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+    if not is_staff_like(current_user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
 

@@ -7,6 +7,7 @@ from app.models.announcement import Announcement
 from app.models.location import Apartment
 from app.models.user import User, UserRole
 from app.repositories.base import BaseRepository
+from app.services.permissions import is_staff_like
 
 
 class AnnouncementRepository(BaseRepository[Announcement]):
@@ -16,10 +17,10 @@ class AnnouncementRepository(BaseRepository[Announcement]):
     def get_visible_for_user(self, user: User) -> List[Announcement]:
         query = self.db.query(Announcement)
 
-        if user.role not in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+        if not is_staff_like(user):
             query = query.filter(Announcement.is_active == True)
 
-        if user.role in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+        if is_staff_like(user):
             return query.order_by(Announcement.created_at.desc()).all()
 
         if user.house_id is None:

@@ -8,6 +8,7 @@ from app.schemas.house_info import (
     HouseEventCreate,
     HouseScheduleCreate,
 )
+from app.services.permissions import can_manage_house_info, is_admin
 
 
 class HouseInfoService:
@@ -15,16 +16,16 @@ class HouseInfoService:
         self.db = db
 
     def _ensure_write_access(self, user: User) -> None:
-        if user.role == UserRole.ADMIN:
-            return
-        if user.role == UserRole.DISPATCHER and bool(user.can_manage_houses):
+        if can_manage_house_info(user):
             return
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
     def _can_manage(self, user: User, author_id: int) -> bool:
-        if user.role == UserRole.ADMIN:
+        if is_admin(user):
             return True
         if user.role == UserRole.DISPATCHER and user.id == author_id:
+            return True
+        if user.role == UserRole.ADMIN_ASSISTANT and bool(user.can_manage_house_info):
             return True
         return False
 

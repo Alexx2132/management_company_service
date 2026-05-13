@@ -18,6 +18,7 @@ class Notification(Base):
 
     ticket_id = Column(Integer, ForeignKey("tickets.id"), nullable=True)
     complaint_id = Column(Integer, ForeignKey("ticket_complaints.id"), nullable=True)
+    announcement_id = Column(Integer, ForeignKey("announcements.id"), nullable=True)
 
     is_read = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

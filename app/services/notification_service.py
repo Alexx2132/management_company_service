@@ -22,6 +22,7 @@ class NotificationService:
         notif_type: str,
         ticket_id: int | None = None,
         complaint_id: int | None = None,
+        announcement_id: int | None = None,
     ) -> Notification:
         obj = Notification(
             user_id=user_id,
@@ -30,6 +31,7 @@ class NotificationService:
             notif_type=notif_type,
             ticket_id=ticket_id,
             complaint_id=complaint_id,
+            announcement_id=announcement_id,
             is_read=False,
             created_at=datetime.utcnow(),
         )
@@ -43,6 +45,7 @@ class NotificationService:
             notif_type=notif_type,
             ticket_id=ticket_id,
             complaint_id=complaint_id,
+            announcement_id=announcement_id,
             notification_id=obj.id,
         )
         return obj
@@ -55,6 +58,7 @@ class NotificationService:
         notif_type: str,
         ticket_id: int | None = None,
         complaint_id: int | None = None,
+        announcement_id: int | None = None,
         exclude_user_ids: list[int] | None = None,
     ) -> int:
         exclude = set(exclude_user_ids or [])
@@ -74,6 +78,7 @@ class NotificationService:
                     notif_type=notif_type,
                     ticket_id=ticket_id,
                     complaint_id=complaint_id,
+                    announcement_id=announcement_id,
                     is_read=False,
                     created_at=now,
                 )
@@ -87,6 +92,7 @@ class NotificationService:
             notif_type=notif_type,
             ticket_id=ticket_id,
             complaint_id=complaint_id,
+            announcement_id=announcement_id,
         )
         return len(target_ids)
 
@@ -98,6 +104,7 @@ class NotificationService:
         notif_type: str,
         ticket_id: int | None = None,
         complaint_id: int | None = None,
+        announcement_id: int | None = None,
         exclude_user_ids: list[int] | None = None,
     ) -> int:
         exclude_user_ids = exclude_user_ids or []
@@ -112,6 +119,7 @@ class NotificationService:
             notif_type=notif_type,
             ticket_id=ticket_id,
             complaint_id=complaint_id,
+            announcement_id=announcement_id,
         )
 
     def list_my(
@@ -166,12 +174,14 @@ class NotificationService:
         notif_type: str,
         ticket_id: int | None = None,
         complaint_id: int | None = None,
+        announcement_id: int | None = None,
         notification_id: int | None = None,
     ) -> None:
         data = {
             "notif_type": notif_type,
             "ticket_id": ticket_id,
             "complaint_id": complaint_id,
+            "announcement_id": announcement_id,
             "notification_id": notification_id,
         }
         PushNotificationService(self.db).send_to_users(

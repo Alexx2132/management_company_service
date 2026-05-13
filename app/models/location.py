@@ -85,3 +85,7 @@ class Apartment(Base):
 
     residents = relationship("User", back_populates="apartment_ref")
     tickets = relationship("Ticket", back_populates="apartment_ref")
+
+    @property
+    def entrance_number(self) -> int | None:
+        return self.entrance.number if self.entrance else None

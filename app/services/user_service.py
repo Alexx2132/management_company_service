@@ -9,9 +9,22 @@ from app.models.location import Apartment
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
 from app.schemas.user import UserAdminUpdate, UserBan, UserCreate, UserUpdate
+from app.services.permissions import can_ban_residents, can_create_users, is_admin, is_admin_assistant
 
 
 class UserService:
+    ASSISTANT_PERMISSION_FIELDS = [
+        "can_manage_houses",
+        "can_ban_residents",
+        "can_create_users",
+        "can_manage_executor_schedules",
+        "can_manage_service_settings",
+        "can_manage_remarks",
+        "can_manage_house_info",
+        "can_manage_announcements",
+    ]
+    DISPATCHER_PERMISSION_FIELDS = ["can_manage_houses", "can_ban_residents"]
+
     def __init__(self, db: Session):
         self.db = db
         self.user_repo = UserRepository(db)
@@ -69,30 +82,82 @@ class UserService:
 
         return payload
 
-    def _normalize_dispatcher_permissions(self, payload: dict, current_role: UserRole | None = None) -> dict:
-        role = payload.get("role", current_role)
+    def _role_value(self, role: UserRole | str | None) -> str | None:
+        if role is None:
+            return None
+        return role.value if isinstance(role, UserRole) else str(role).lower()
 
-        if role == UserRole.DISPATCHER or str(role).lower() == UserRole.DISPATCHER.value:
-            payload["can_manage_houses"] = bool(payload.get("can_manage_houses", False))
-            payload["can_ban_residents"] = bool(payload.get("can_ban_residents", False))
+    def _normalize_role_permissions(self, payload: dict, current_role: UserRole | None = None) -> dict:
+        role = payload.get("role", current_role)
+        role_value = self._role_value(role)
+        permission_fields_present = any(key in payload for key in self.ASSISTANT_PERMISSION_FIELDS)
+        if current_role is not None and "role" not in payload and not permission_fields_present:
             return payload
 
-        if "can_manage_houses" in payload:
-            payload["can_manage_houses"] = False
-        if "can_ban_residents" in payload:
-            payload["can_ban_residents"] = False
+        if role_value == UserRole.ADMIN_ASSISTANT.value:
+            for key in self.ASSISTANT_PERMISSION_FIELDS:
+                payload[key] = bool(payload.get(key, False))
+            return payload
+
+        if role_value == UserRole.DISPATCHER.value:
+            for key in self.DISPATCHER_PERMISSION_FIELDS:
+                payload[key] = bool(payload.get(key, False))
+            for key in self.ASSISTANT_PERMISSION_FIELDS:
+                if key not in self.DISPATCHER_PERMISSION_FIELDS:
+                    payload[key] = False
+            return payload
+
+        for key in self.ASSISTANT_PERMISSION_FIELDS:
+            payload[key] = False
         return payload
 
-    def _can_ban_residents(self, actor: User) -> bool:
-        if actor.role == UserRole.ADMIN:
-            return True
-        return actor.role == UserRole.DISPATCHER and bool(actor.can_ban_residents)
+    def _ensure_can_create_target_role(self, actor: User | None, target_role: UserRole) -> None:
+        if target_role == UserRole.ADMIN:
+            existing_admin = self.db.query(User.id).filter(User.role == UserRole.ADMIN).first()
+            if existing_admin is None and actor is None:
+                return
+            raise HTTPException(
+                status_code=400,
+                detail="Нельзя создать второго администратора. Создайте пользователя с ролью помощника администратора.",
+            )
 
-    def create_user(self, user_in: UserCreate) -> User:
+        if actor is None:
+            return
+
+        if not can_create_users(actor):
+            raise HTTPException(status_code=403, detail="Not enough permissions to create users")
+
+        if is_admin_assistant(actor) and target_role == UserRole.ADMIN_ASSISTANT:
+            raise HTTPException(status_code=403, detail="Only admin can create admin assistants")
+
+    def _validate_admin_update_role_change(self, actor: User, target_user: User, data: dict) -> None:
+        if is_admin(actor):
+            if data.get("role") == UserRole.ADMIN:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Нельзя назначить второго администратора. Используйте роль помощника администратора.",
+                )
+            return
+
+        if not can_create_users(actor):
+            raise HTTPException(status_code=403, detail="Not enough permissions to update users")
+
+        if target_user.role in [UserRole.ADMIN, UserRole.ADMIN_ASSISTANT]:
+            raise HTTPException(status_code=403, detail="Only admin can update admin or assistant accounts")
+
+        if data.get("role") in [UserRole.ADMIN, UserRole.ADMIN_ASSISTANT]:
+            raise HTTPException(status_code=403, detail="Only admin can assign admin assistant role")
+
+        for key in self.ASSISTANT_PERMISSION_FIELDS:
+            data.pop(key, None)
+
+    def create_user(self, user_in: UserCreate, actor: User | None = None) -> User:
         user_data = user_in.model_dump()
 
         user_data = self._normalize_auth_fields(user_data)
-        user_data = self._normalize_dispatcher_permissions(user_data)
+        target_role = user_data.get("role", UserRole.RESIDENT)
+        self._ensure_can_create_target_role(actor, target_role)
+        user_data = self._normalize_role_permissions(user_data)
 
         existing_by_login = self.user_repo.get_by_login(user_data["login"])
         if existing_by_login:
@@ -131,7 +196,7 @@ class UserService:
         return {"status": "password updated"}
 
     def ban_user(self, user_id: int, ban_data: UserBan, admin_user: User):
-        if not self._can_ban_residents(admin_user):
+        if not can_ban_residents(admin_user):
             raise HTTPException(status_code=403, detail="Not enough permissions to manage resident bans")
 
         user_to_ban = self.user_repo.get_by_id(user_id)
@@ -174,14 +239,12 @@ class UserService:
         return user
 
     def admin_update_user(self, user_id: int, update_data: UserAdminUpdate, admin_user: User) -> User:
-        if admin_user.role != UserRole.ADMIN:
-            raise HTTPException(status_code=403, detail="Only admin can update arbitrary users")
-
         user = self.user_repo.get_by_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
         data = update_data.model_dump(exclude_unset=True)
+        self._validate_admin_update_role_change(admin_user, user, data)
         data = self._normalize_auth_fields(data) if ("login" in data or "phone" in data) else data
 
         if "login" in data and data["login"]:
@@ -195,7 +258,7 @@ class UserService:
                 raise HTTPException(status_code=400, detail="Phone number already exists")
 
         data = self._apply_apartment_binding(data)
-        data = self._normalize_dispatcher_permissions(data, current_role=user.role)
+        data = self._normalize_role_permissions(data, current_role=user.role)
 
         for key, value in data.items():
             setattr(user, key, value)

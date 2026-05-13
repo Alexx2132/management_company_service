@@ -308,7 +308,7 @@ class TicketService:
         skip: int = 0,
         **kwargs,
     ) -> List[Ticket]:
-        if user.role in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+        if user.role in [UserRole.ADMIN, UserRole.ADMIN_ASSISTANT, UserRole.DISPATCHER, UserRole.AUDITOR]:
             tickets = self.ticket_repo.get_filtered(
                 status=status,
                 house_id=house_id,
@@ -352,7 +352,7 @@ class TicketService:
     def get_ticket(self, ticket_id: int, current_user: User) -> Ticket:
         ticket = self._get_ticket_or_404(ticket_id)
 
-        if current_user.role in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+        if current_user.role in [UserRole.ADMIN, UserRole.ADMIN_ASSISTANT, UserRole.DISPATCHER, UserRole.AUDITOR]:
             return ticket
 
         if current_user.role == UserRole.EXECUTOR:
@@ -452,6 +452,18 @@ class TicketService:
             data["is_external_request"] = True
             data["external_contact_phone"] = str(data.get("external_contact_phone") or "").strip()
             data["show_contact_phone"] = True
+            if not data.get("apartment_id") and str(data.get("apartment") or "").strip():
+                apartment_obj = (
+                    self.db.query(Apartment)
+                    .filter(
+                        Apartment.house_id == data["house_id"],
+                        Apartment.apartment_number == str(data["apartment"]).strip(),
+                        Apartment.is_active.is_(True),
+                    )
+                    .first()
+                )
+                if apartment_obj:
+                    data["apartment_id"] = apartment_obj.id
 
         data.pop("created_for_user_id", None)
 

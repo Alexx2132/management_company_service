@@ -5,6 +5,7 @@ from app.core.profanity import ensure_clean_text
 from app.models.app_settings import AppSettings
 from app.models.user import User, UserRole
 from app.schemas.app_settings import AppSettingsUpdate
+from app.services.permissions import can_manage_service_settings
 
 
 class AppSettingsService:
@@ -89,8 +90,8 @@ class AppSettingsService:
         return settings
 
     def update_settings(self, data: AppSettingsUpdate, current_user: User) -> AppSettings:
-        can_manage_branding = current_user.role == UserRole.ADMIN
-        can_manage_escalation = current_user.role == UserRole.ADMIN
+        can_manage_branding = can_manage_service_settings(current_user)
+        can_manage_escalation = can_manage_service_settings(current_user)
         can_manage_overdue = current_user.role in [UserRole.ADMIN, UserRole.AUDITOR]
         can_manage_primary_limit = current_user.role in [UserRole.ADMIN, UserRole.AUDITOR]
 

@@ -36,7 +36,7 @@ VISIBLE_OPEN_STATUSES = {
     TicketStatus.DONE,
 }
 
-STAFF_ROLES = {UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR}
+STAFF_ROLES = {UserRole.ADMIN, UserRole.ADMIN_ASSISTANT, UserRole.DISPATCHER, UserRole.AUDITOR}
 
 
 @dataclass

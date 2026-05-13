@@ -21,18 +21,24 @@ from app.schemas.executor import (
 )
 from app.services.executor_availability import moscow_today
 from app.services.executor_service import ExecutorService
+from app.services.permissions import can_create_users, can_manage_executor_schedules, is_staff_like
 
 router = APIRouter()
 
 
 def _ensure_staff(current_user: User):
-    if current_user.role not in [UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR]:
+    if not is_staff_like(current_user):
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
 
 def _ensure_admin(current_user: User):
-    if current_user.role != UserRole.ADMIN:
+    if not can_manage_executor_schedules(current_user):
         raise HTTPException(status_code=403, detail="Only admin can do this")
+
+
+def _ensure_can_create_executor(current_user: User):
+    if not can_create_users(current_user):
+        raise HTTPException(status_code=403, detail="Not enough permissions")
 
 
 @router.get("/specialties", response_model=List[SpecialtyResponse])
@@ -157,7 +163,7 @@ def create_executor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    _ensure_admin(current_user)
+    _ensure_can_create_executor(current_user)
     service = ExecutorService(db)
     return service.create_executor(payload)
 

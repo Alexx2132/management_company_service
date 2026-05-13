@@ -25,7 +25,7 @@ from app.services.notification_service import NotificationService
 
 
 FINAL_STATUSES = {TicketStatus.DONE, TicketStatus.CLOSED, TicketStatus.CANCELED}
-VIEW_ROLES = {UserRole.ADMIN, UserRole.DISPATCHER, UserRole.AUDITOR}
+VIEW_ROLES = {UserRole.ADMIN, UserRole.ADMIN_ASSISTANT, UserRole.DISPATCHER, UserRole.AUDITOR}
 MANAGE_ROLES = {UserRole.ADMIN, UserRole.DISPATCHER}
 
 
