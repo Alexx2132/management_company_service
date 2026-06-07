@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AnalyticsStatusBucket(BaseModel):
@@ -16,4 +16,4 @@ class TicketAnalyticsOverviewResponse(BaseModel):
     total_tickets: int
     status_buckets: list[AnalyticsStatusBucket]
     category_buckets: list[AnalyticsCategoryBucket]
-    location_buckets: list[AnalyticsCategoryBucket] = []
+    location_buckets: list[AnalyticsCategoryBucket] = Field(default_factory=list)

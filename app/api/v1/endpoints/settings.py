@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, File, UploadFile
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, get_db
@@ -25,3 +25,22 @@ def update_app_settings(
 ):
     service = AppSettingsService(db)
     return service.update_settings(data, current_user)
+
+
+@router.post("/app/login-background", response_model=AppSettingsResponse)
+def upload_login_background(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = AppSettingsService(db)
+    return service.upload_login_background(file, current_user)
+
+
+@router.delete("/app/login-background", response_model=AppSettingsResponse)
+def delete_login_background(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = AppSettingsService(db)
+    return service.clear_login_background(current_user)

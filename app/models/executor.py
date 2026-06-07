@@ -57,6 +57,14 @@ class Specialty(Base):
         cascade="all, delete-orphan"
     )
 
+    @property
+    def executor_count(self) -> int:
+        return len(self.executors or [])
+
+    @property
+    def can_delete(self) -> bool:
+        return self.executor_count == 0
+
 
 class ExecutorSpecialty(Base):
     __tablename__ = "executor_specialties"

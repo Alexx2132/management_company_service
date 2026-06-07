@@ -4,7 +4,7 @@ from typing import List
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
-from app.models.ticket import Ticket, TicketStatus
+from app.models.ticket import Ticket, TicketPriority, TicketStatus
 from app.repositories.base import BaseRepository
 
 
@@ -24,7 +24,8 @@ class TicketRepository(BaseRepository[Ticket]):
             skip: int = 0,
             created_from: datetime | None = None,
             created_to: datetime | None = None,
-            overdue_hours: int | None = None
+            overdue_hours: int | None = None,
+            priorities: list[str] | None = None
     ) -> List[Ticket]:
         query = self.db.query(Ticket)
 
@@ -36,6 +37,16 @@ class TicketRepository(BaseRepository[Ticket]):
 
         if executor_id:
             query = query.filter(Ticket.executor_id == executor_id)
+
+        if priorities:
+            normalized_priorities = []
+            for item in priorities:
+                try:
+                    normalized_priorities.append(TicketPriority(str(item).strip().lower()))
+                except ValueError:
+                    continue
+            if normalized_priorities:
+                query = query.filter(Ticket.priority.in_(normalized_priorities))
 
         if created_from:
             query = query.filter(Ticket.created_at >= created_from)

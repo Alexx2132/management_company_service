@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, get_db
 from app.models.announcement import Announcement
 from app.models.location import Apartment, HouseEntrance
-from app.models.user import User, UserRole
+from app.models.user import AnnouncementHistory, User, UserRole
 from app.repositories.announcement_repository import AnnouncementRepository
 from app.schemas.announcement import AnnouncementCreate, AnnouncementResponse
 from app.services.notification_service import NotificationService
@@ -60,6 +60,14 @@ def create_announcement(
 
     data["author_id"] = current_user.id
     announcement = AnnouncementRepository(db).create(data)
+    db.add(AnnouncementHistory(
+        announcement_id=announcement.id,
+        actor_id=current_user.id,
+        action="created",
+        new_value="Создано объявление",
+    ))
+    db.commit()
+    db.refresh(announcement)
     target_ids = _announcement_target_resident_ids(db, target_house_id, target_entrance_id)
     NotificationService(db).notify_many(
         user_ids=target_ids,
@@ -95,7 +103,17 @@ def update_announcement(
     if ann.author_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only announcement author can archive it")
 
+    old_value = "active" if ann.is_active else "archived"
+    new_value = "active" if is_active else "archived"
     ann.is_active = is_active
+    if old_value != new_value:
+        db.add(AnnouncementHistory(
+            announcement_id=ann.id,
+            actor_id=current_user.id,
+            action="restored" if is_active else "archived",
+            old_value=old_value,
+            new_value=new_value,
+        ))
     db.commit()
     db.refresh(ann)
     return ann

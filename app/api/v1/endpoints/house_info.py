@@ -10,12 +10,45 @@ from app.schemas.house_info import (
     EmergencyContactResponse,
     HouseEventCreate,
     HouseEventResponse,
+    HouseInfoTypeCreate,
+    HouseInfoTypeResponse,
     HouseScheduleCreate,
     HouseScheduleResponse,
 )
 from app.services.house_info_service import HouseInfoService
 
 router = APIRouter()
+
+
+@router.get("/types", response_model=List[HouseInfoTypeResponse])
+def read_house_info_types(
+    type_group: str | None = None,
+    active_only: bool = True,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = HouseInfoService(db)
+    return service.get_types(type_group=type_group, active_only=active_only)
+
+
+@router.post("/types", response_model=HouseInfoTypeResponse)
+def create_house_info_type(
+    payload: HouseInfoTypeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = HouseInfoService(db)
+    return service.create_type(current_user, payload)
+
+
+@router.delete("/types/{type_id}", response_model=HouseInfoTypeResponse)
+def delete_house_info_type(
+    type_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    service = HouseInfoService(db)
+    return service.delete_type(current_user, type_id)
 
 
 @router.get("/events", response_model=List[HouseEventResponse])

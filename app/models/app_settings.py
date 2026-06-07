@@ -17,6 +17,7 @@ class AppSettings(Base):
     mobile_login_brand = Column(String(120), nullable=False, default="Управляющая компания")
     mobile_login_title = Column(String(200), nullable=False, default="Вход в систему")
     mobile_login_subtitle = Column(String(300), nullable=False, default="Жители отслеживают заявки, сотрудники контролируют их исполнение.")
+    login_background_image = Column(String(500), nullable=True)
     service_rules_text = Column(
         Text,
         nullable=False,

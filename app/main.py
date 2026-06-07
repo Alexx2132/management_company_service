@@ -1,5 +1,6 @@
 import asyncio
 import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +11,13 @@ from app.core.config import settings
 from app.services.live_update_hub import live_update_hub
 
 
-app = FastAPI(title=settings.APP_TITLE)
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    live_update_hub.set_loop(asyncio.get_running_loop())
+    yield
+
+
+app = FastAPI(title=settings.APP_TITLE, lifespan=lifespan)
 
 # CORS для web frontend (Nuxt dev server)
 app.add_middleware(
@@ -29,11 +36,6 @@ app.add_middleware(
 UPLOAD_DIR = "static/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-@app.on_event("startup")
-async def setup_live_updates():
-    live_update_hub.set_loop(asyncio.get_running_loop())
 
 
 @app.get("/ping")

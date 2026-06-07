@@ -1,8 +1,12 @@
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.models.announcement import Announcement
+from app.models.house_info import EmergencyContact, HouseEvent, HouseSchedule
 from app.models.location import Apartment, House, HouseEntrance
 from app.models.ticket import Ticket, TicketPriority, TicketStatus
+from app.models.user import User
 from app.repositories.house_repository import HouseRepository
 from app.schemas.location import (
     ApartmentCreate,
@@ -141,8 +145,31 @@ class HouseService:
 
             current_number = spec.start_number if spec.start_number is not None else next_apartment_number
 
-            for floor_number in range(spec.start_floor, spec.start_floor + spec.floors_count):
-                for _ in range(spec.apartments_per_floor):
+            floor_layout = []
+            if spec.floor_layout:
+                seen_floors = set()
+                for floor_spec in spec.floor_layout:
+                    if floor_spec.floor_number in seen_floors:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=f"Duplicate floor in entrance {spec.number}: {floor_spec.floor_number}"
+                        )
+                    seen_floors.add(floor_spec.floor_number)
+                    floor_layout.append((floor_spec.floor_number, floor_spec.apartments_count))
+
+                if not any(apartment_count > 0 for _, apartment_count in floor_layout):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Entrance {spec.number} must contain at least one apartment"
+                    )
+            else:
+                floor_layout = [
+                    (floor_number, spec.apartments_per_floor)
+                    for floor_number in range(spec.start_floor, spec.start_floor + spec.floors_count)
+                ]
+
+            for floor_number, apartments_count in sorted(floor_layout, key=lambda item: item[0]):
+                for _ in range(apartments_count):
                     apartment_number = str(current_number)
 
                     exists = (
@@ -186,7 +213,59 @@ class HouseService:
         return self.house_repo.update(house_id, house_in.model_dump())
 
     def delete_house(self, house_id: int):
-        return self.house_repo.delete(house_id)
+        house = self._get_house_or_404(house_id)
+        apartment_ids = [
+            apartment_id
+            for (apartment_id,) in self.db.query(Apartment.id).filter(Apartment.house_id == house.id).all()
+        ]
+        entrance_ids = [
+            entrance_id
+            for (entrance_id,) in self.db.query(HouseEntrance.id).filter(HouseEntrance.house_id == house.id).all()
+        ]
+
+        resident_filter = User.house_id == house.id
+        if apartment_ids:
+            resident_filter = or_(resident_filter, User.apartment_id.in_(apartment_ids))
+        if self.db.query(User).filter(resident_filter).first():
+            raise HTTPException(
+                status_code=400,
+                detail="Дом нельзя удалить: в его квартирах уже есть добавленные жители"
+            )
+
+        ticket_filter = Ticket.house_id == house.id
+        if apartment_ids:
+            ticket_filter = or_(ticket_filter, Ticket.apartment_id.in_(apartment_ids))
+
+        active_ticket = (
+            self.db.query(Ticket)
+            .filter(
+                ticket_filter,
+                Ticket.status.notin_([TicketStatus.DONE, TicketStatus.CLOSED, TicketStatus.CANCELED]),
+            )
+            .first()
+        )
+        if active_ticket:
+            raise HTTPException(
+                status_code=400,
+                detail="Дом нельзя удалить: по нему есть активные заявки"
+            )
+
+        self.db.query(Ticket).filter(ticket_filter).update(
+            {Ticket.house_id: None, Ticket.apartment_id: None},
+            synchronize_session=False,
+        )
+        self.db.query(HouseEvent).filter(HouseEvent.house_id == house.id).delete(synchronize_session=False)
+        self.db.query(EmergencyContact).filter(EmergencyContact.house_id == house.id).delete(synchronize_session=False)
+        self.db.query(HouseSchedule).filter(HouseSchedule.house_id == house.id).delete(synchronize_session=False)
+
+        announcement_filter = Announcement.target_house_id == house.id
+        if entrance_ids:
+            announcement_filter = or_(announcement_filter, Announcement.target_entrance_id.in_(entrance_ids))
+        self.db.query(Announcement).filter(announcement_filter).delete(synchronize_session=False)
+
+        self.db.delete(house)
+        self.db.commit()
+        return {"status": "deleted"}
 
     def get_house_structure(self, house_id: int):
         house = self._get_house_or_404(house_id)

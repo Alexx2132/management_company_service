@@ -39,7 +39,9 @@ class BanAppealService:
         return conversation
 
     def get_my_conversation(self, user: User) -> BanConversation:
-        return self._get_or_create_for_resident(user)
+        conversation = self._get_or_create_for_resident(user)
+        NotificationService(self.db).mark_ban_conversation_read(user.id, conversation.id)
+        return conversation
 
     def list_conversations(self, user: User) -> list[BanConversation]:
         if user.role != UserRole.ADMIN:
@@ -68,6 +70,7 @@ class BanAppealService:
             raise HTTPException(status_code=404, detail="Переписка не найдена")
 
         if user.role == UserRole.ADMIN or conversation.resident_id == user.id:
+            NotificationService(self.db).mark_ban_conversation_read(user.id, conversation.id)
             return conversation
         raise HTTPException(status_code=403, detail="Нет доступа к этой переписке")
 
@@ -82,6 +85,14 @@ class BanAppealService:
         return self._add_message(conversation, payload, user)
 
     def _add_message(self, conversation: BanConversation, payload: BanMessageCreate, sender: User) -> BanConversation:
+        if sender.role == UserRole.ADMIN:
+            resident = conversation.resident or self.db.query(User).filter(User.id == conversation.resident_id).first()
+            if not resident or resident.banned_until is None or resident.banned_until <= datetime.utcnow():
+                raise HTTPException(
+                    status_code=400,
+                    detail="Житель уже разблокирован, переписка по ограничению закрыта",
+                )
+
         text = payload.message.strip()
         ensure_clean_text(text)
         if not text:
@@ -103,6 +114,7 @@ class BanAppealService:
                 title="Ответ администратора по блокировке",
                 message="Администратор ответил в переписке по блокировке.",
                 notif_type="ban_message_resident",
+                ban_conversation_id=conversation.id,
             )
         else:
             NotificationService(self.db).notify_roles(
@@ -110,6 +122,7 @@ class BanAppealService:
                 title="Новое сообщение по блокировке",
                 message=f"Житель отправил сообщение по блокировке: {text[:120]}",
                 notif_type="ban_message_admin",
+                ban_conversation_id=conversation.id,
                 exclude_user_ids=[sender.id],
             )
 

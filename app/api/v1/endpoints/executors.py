@@ -62,6 +62,18 @@ def create_specialty(
     return service.create_specialty(payload)
 
 
+@router.delete("/specialties/{specialty_id}")
+def delete_specialty(
+    specialty_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    _ensure_admin(current_user)
+    service = ExecutorService(db)
+    service.delete_specialty(specialty_id)
+    return {"ok": True}
+
+
 @router.get("/", response_model=List[ExecutorProfileResponse])
 def list_executors(
     house_id: int | None = None,

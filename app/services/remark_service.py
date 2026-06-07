@@ -7,6 +7,7 @@ from app.models.user import User, UserRole
 from app.models.remark import Remark, RemarkStatus
 from app.repositories.remark_repository import RemarkRepository
 from app.schemas.remark import RemarkCreate
+from app.services.notification_service import NotificationService
 from app.services.permissions import can_manage_remarks
 
 
@@ -51,7 +52,16 @@ class RemarkService:
             status=RemarkStatus.ACTIVE,
             created_at=datetime.utcnow()
         )
-        return self.repo.create(obj)
+        created = self.repo.create(obj)
+        issuer_name = (current_user.full_name or "").strip() or "сотрудник"
+        NotificationService(self.db).notify_user(
+            user_id=created.executor_id,
+            title="Новое замечание",
+            message=f"{issuer_name} вынес Вам новое замечание. Откройте раздел замечаний, чтобы ознакомиться.",
+            notif_type="remark_created",
+            extra_data={"remark_id": created.id},
+        )
+        return created
 
     def list_sent(self, current_user: User, skip: int = 0, limit: int = 100, status: RemarkStatus | None = None):
         self._ensure_staff_can_issue(current_user)

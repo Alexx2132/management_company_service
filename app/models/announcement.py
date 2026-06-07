@@ -25,3 +25,4 @@ class Announcement(Base):
 
     house = relationship("House", foreign_keys=[target_house_id])
     entrance = relationship("HouseEntrance", foreign_keys=[target_entrance_id])
+    history = relationship("AnnouncementHistory", back_populates="announcement", order_by="AnnouncementHistory.created_at")

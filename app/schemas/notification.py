@@ -11,6 +11,8 @@ class NotificationResponse(BaseModel):
     ticket_id: int | None = None
     complaint_id: int | None = None
     announcement_id: int | None = None
+    ban_conversation_id: int | None = None
+    message_conversation_id: int | None = None
 
     is_read: bool
     created_at: datetime

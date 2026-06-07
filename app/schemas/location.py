@@ -98,6 +98,11 @@ class HouseStructureResponse(HouseResponse):
     entrances: list[HouseEntranceWithApartmentsResponse] = []
 
 
+class EntranceFloorLayoutSpec(BaseModel):
+    floor_number: int = Field(..., ge=1)
+    apartments_count: int = Field(..., ge=0)
+
+
 class EntranceBulkGenerateSpec(BaseModel):
     number: int = Field(..., ge=1)
     floors_count: int = Field(..., ge=1)
@@ -106,6 +111,7 @@ class EntranceBulkGenerateSpec(BaseModel):
     start_floor: int = Field(default=1, ge=1)
     rooms_count: int | None = Field(default=None, ge=1)
     is_active: bool = True
+    floor_layout: list[EntranceFloorLayoutSpec] | None = None
 
 
 class HouseWithStructureCreateRequest(HouseBase):

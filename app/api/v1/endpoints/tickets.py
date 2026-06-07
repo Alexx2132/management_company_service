@@ -10,12 +10,19 @@ from app.models.user import User, UserRole
 from app.schemas.history import HistoryResponse
 from app.models.history import TicketHistory
 from app.models.ticket import TicketPriority, TicketStatus
+from app.services.notification_service import NotificationService
 
 router = APIRouter()
 
 
 def _ticket_response(ticket, current_user: User) -> TicketResponse:
     response = TicketResponse.model_validate(ticket)
+    if ticket.status == TicketStatus.CANCELED:
+        is_rejected = any(
+            str(history.comment or "").strip().lower().startswith("заявка отклонена.")
+            for history in (ticket.history or [])
+        )
+        response.status_label = "Отклонена" if is_rejected else "Отменена"
     if (
         response.author
         and response.author_id != current_user.id
@@ -125,7 +132,10 @@ def read_ticket(
     current_user: User = Depends(get_current_user)
 ):
     service = TicketService(db)
-    return _ticket_response(service.get_ticket_by_id(ticket_id, current_user), current_user)
+    ticket = service.get_ticket_by_id(ticket_id, current_user)
+    if current_user.role in [UserRole.ADMIN, UserRole.ADMIN_ASSISTANT, UserRole.DISPATCHER]:
+        NotificationService(db).mark_ticket_created_read_for_staff(ticket_id)
+    return _ticket_response(ticket, current_user)
 
 
 @router.patch("/{ticket_id}/status", response_model=TicketResponse)

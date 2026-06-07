@@ -1,15 +1,14 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
-
-from app.models.house_info import HouseEventType, HouseScheduleType
 
 
 class HouseEventBase(BaseModel):
     house_id: int | None = None
     title: str
     description: str | None = None
-    event_type: HouseEventType
+    event_type: str
     starts_at: datetime
     ends_at: datetime | None = None
     is_active: bool = True
@@ -23,7 +22,7 @@ class HouseEventUpdate(BaseModel):
     house_id: int | None = None
     title: str | None = None
     description: str | None = None
-    event_type: HouseEventType | None = None
+    event_type: str | None = None
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     is_active: bool | None = None
@@ -75,7 +74,7 @@ class HouseScheduleBase(BaseModel):
     house_id: int | None = None
     title: str
     description: str | None = None
-    schedule_type: HouseScheduleType
+    schedule_type: str
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     start_time: str | None = None
@@ -92,7 +91,7 @@ class HouseScheduleUpdate(BaseModel):
     house_id: int | None = None
     title: str | None = None
     description: str | None = None
-    schedule_type: HouseScheduleType | None = None
+    schedule_type: str | None = None
     starts_at: datetime | None = None
     ends_at: datetime | None = None
     start_time: str | None = None
@@ -104,6 +103,25 @@ class HouseScheduleUpdate(BaseModel):
 class HouseScheduleResponse(HouseScheduleBase):
     id: int
     author_id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class HouseInfoTypeCreate(BaseModel):
+    type_group: Literal["event", "schedule"]
+    name: str
+    code: str | None = None
+    is_active: bool = True
+
+
+class HouseInfoTypeResponse(BaseModel):
+    id: int
+    type_group: str
+    code: str
+    name: str
+    is_active: bool
     created_at: datetime
 
     class Config:

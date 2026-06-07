@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.models.notification import Notification
 from app.models.user import UserRole
 from app.repositories.notification_repository import NotificationRepository
+from app.services.live_update_hub import live_update_hub
 from app.services.push_notification_service import PushNotificationService
 
 
@@ -23,6 +24,9 @@ class NotificationService:
         ticket_id: int | None = None,
         complaint_id: int | None = None,
         announcement_id: int | None = None,
+        ban_conversation_id: int | None = None,
+        message_conversation_id: int | None = None,
+        extra_data: dict | None = None,
     ) -> Notification:
         obj = Notification(
             user_id=user_id,
@@ -32,6 +36,8 @@ class NotificationService:
             ticket_id=ticket_id,
             complaint_id=complaint_id,
             announcement_id=announcement_id,
+            ban_conversation_id=ban_conversation_id,
+            message_conversation_id=message_conversation_id,
             is_read=False,
             created_at=datetime.utcnow(),
         )
@@ -46,7 +52,10 @@ class NotificationService:
             ticket_id=ticket_id,
             complaint_id=complaint_id,
             announcement_id=announcement_id,
+            ban_conversation_id=ban_conversation_id,
+            message_conversation_id=message_conversation_id,
             notification_id=obj.id,
+            extra_data=extra_data,
         )
         return obj
 
@@ -59,7 +68,10 @@ class NotificationService:
         ticket_id: int | None = None,
         complaint_id: int | None = None,
         announcement_id: int | None = None,
+        ban_conversation_id: int | None = None,
+        message_conversation_id: int | None = None,
         exclude_user_ids: list[int] | None = None,
+        extra_data: dict | None = None,
     ) -> int:
         exclude = set(exclude_user_ids or [])
         unique_user_ids = {int(user_id) for user_id in user_ids if user_id is not None}
@@ -79,6 +91,8 @@ class NotificationService:
                     ticket_id=ticket_id,
                     complaint_id=complaint_id,
                     announcement_id=announcement_id,
+                    ban_conversation_id=ban_conversation_id,
+                    message_conversation_id=message_conversation_id,
                     is_read=False,
                     created_at=now,
                 )
@@ -93,6 +107,9 @@ class NotificationService:
             ticket_id=ticket_id,
             complaint_id=complaint_id,
             announcement_id=announcement_id,
+            ban_conversation_id=ban_conversation_id,
+            message_conversation_id=message_conversation_id,
+            extra_data=extra_data,
         )
         return len(target_ids)
 
@@ -105,7 +122,10 @@ class NotificationService:
         ticket_id: int | None = None,
         complaint_id: int | None = None,
         announcement_id: int | None = None,
+        ban_conversation_id: int | None = None,
+        message_conversation_id: int | None = None,
         exclude_user_ids: list[int] | None = None,
+        extra_data: dict | None = None,
     ) -> int:
         exclude_user_ids = exclude_user_ids or []
         from app.models.user import User
@@ -120,6 +140,9 @@ class NotificationService:
             ticket_id=ticket_id,
             complaint_id=complaint_id,
             announcement_id=announcement_id,
+            ban_conversation_id=ban_conversation_id,
+            message_conversation_id=message_conversation_id,
+            extra_data=extra_data,
         )
 
     def list_my(
@@ -166,6 +189,79 @@ class NotificationService:
         self.db.commit()
         return int(updated)
 
+    def mark_ban_conversation_read(self, user_id: int, conversation_id: int) -> int:
+        updated = (
+            self.db.query(Notification)
+            .filter(
+                Notification.user_id == user_id,
+                Notification.ban_conversation_id == conversation_id,
+                Notification.notif_type.in_(["ban_message_admin", "ban_message_resident"]),
+                Notification.is_read == False,  # noqa: E712
+            )
+            .update({
+                Notification.is_read: True,
+                Notification.read_at: datetime.utcnow(),
+            }, synchronize_session=False)
+        )
+        self.db.commit()
+        if updated:
+            live_update_hub.broadcast_from_sync({
+                "entity": "notification",
+                "action": "read",
+                "kind": "ban_appeal",
+                "conversation_id": conversation_id,
+                "user_id": user_id,
+            })
+        return int(updated)
+
+    def mark_message_conversation_read(self, user_id: int, conversation_id: int) -> int:
+        updated = (
+            self.db.query(Notification)
+            .filter(
+                Notification.user_id == user_id,
+                Notification.message_conversation_id == conversation_id,
+                Notification.notif_type.in_(["message_new", "message_new_silent"]),
+                Notification.is_read == False,  # noqa: E712
+            )
+            .update({
+                Notification.is_read: True,
+                Notification.read_at: datetime.utcnow(),
+            }, synchronize_session=False)
+        )
+        self.db.commit()
+        if updated:
+            live_update_hub.broadcast_from_sync({
+                "entity": "notification",
+                "action": "read",
+                "kind": "message",
+                "conversation_id": conversation_id,
+                "user_id": user_id,
+            })
+        return int(updated)
+
+    def mark_ticket_created_read_for_staff(self, ticket_id: int) -> int:
+        updated = (
+            self.db.query(Notification)
+            .filter(
+                Notification.ticket_id == ticket_id,
+                Notification.notif_type == "ticket_created",
+                Notification.is_read == False,  # noqa: E712
+            )
+            .update({
+                Notification.is_read: True,
+                Notification.read_at: datetime.utcnow(),
+            }, synchronize_session=False)
+        )
+        self.db.commit()
+        if updated:
+            live_update_hub.broadcast_from_sync({
+                "entity": "notification",
+                "action": "read",
+                "kind": "ticket_created",
+                "ticket_id": ticket_id,
+            })
+        return int(updated)
+
     def _send_push(
         self,
         user_ids: list[int] | set[int],
@@ -176,6 +272,9 @@ class NotificationService:
         complaint_id: int | None = None,
         announcement_id: int | None = None,
         notification_id: int | None = None,
+        ban_conversation_id: int | None = None,
+        message_conversation_id: int | None = None,
+        extra_data: dict | None = None,
     ) -> None:
         data = {
             "notif_type": notif_type,
@@ -183,7 +282,11 @@ class NotificationService:
             "complaint_id": complaint_id,
             "announcement_id": announcement_id,
             "notification_id": notification_id,
+            "ban_conversation_id": ban_conversation_id,
+            "message_conversation_id": message_conversation_id,
         }
+        if extra_data:
+            data.update(extra_data)
         PushNotificationService(self.db).send_to_users(
             user_ids=user_ids,
             title=title,

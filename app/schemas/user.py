@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.models.user import UserRole
 from app.schemas.location import ApartmentResponse, HouseResponse
@@ -30,6 +30,7 @@ class UserBase(BaseModel):
     can_manage_remarks: bool = False
     can_manage_house_info: bool = False
     can_manage_announcements: bool = False
+    allowed_ticket_priorities: str | None = None
 
 
 class UserCreate(UserBase):
@@ -46,6 +47,7 @@ class UserResponse(UserBase):
     house: HouseResponse | None = None
     apartment_ref: ApartmentResponse | None = None
     banned_until: datetime | None = None
+    ban_reason: str | None = None
 
     class Config:
         from_attributes = True
@@ -53,6 +55,7 @@ class UserResponse(UserBase):
 
 class UserBan(BaseModel):
     banned_until: datetime | None = None
+    ban_reason: str | None = None
 
 
 class UserUpdate(BaseModel):
@@ -80,3 +83,31 @@ class UserAdminUpdate(BaseModel):
     can_manage_remarks: bool | None = None
     can_manage_house_info: bool | None = None
     can_manage_announcements: bool | None = None
+    allowed_ticket_priorities: str | None = None
+
+
+class UserChangeHistoryResponse(BaseModel):
+    id: int
+    user_id: int
+    actor_id: int | None = None
+    actor_name: str | None = None
+    field_name: str
+    old_value: str | None = None
+    new_value: str | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ResidentAutofillRequest(BaseModel):
+    house_id: int
+    login_prefix: str = Field(..., min_length=1)
+    password: str = Field(..., min_length=1)
+    name_prefix: str = Field(default="Житель", min_length=1)
+
+
+class ResidentAutofillResponse(BaseModel):
+    created_count: int
+    skipped_occupied_count: int
+    created_logins: list[str]

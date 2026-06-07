@@ -17,6 +17,8 @@ class SpecialtyCreate(SpecialtyBase):
 
 class SpecialtyResponse(SpecialtyBase):
     id: int
+    executor_count: int = 0
+    can_delete: bool = True
 
     class Config:
         from_attributes = True
@@ -58,6 +60,7 @@ class ExecutorUpdateRequest(BaseModel):
 
 class ExecutorUserShort(BaseModel):
     id: int
+    full_name: str
     login: str
     contact_phone: str | None = None
 

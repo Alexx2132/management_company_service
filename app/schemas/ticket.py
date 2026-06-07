@@ -16,6 +16,7 @@ class UserShortResponse(BaseModel):
     house_id: int | None = None
     apartment_id: int | None = None
     specialty: str | None = None
+    banned_until: datetime | None = None
 
     class Config:
         from_attributes = True
@@ -85,6 +86,7 @@ class TicketCancelRequest(BaseModel):
 class TicketResponse(TicketBase):
     id: int
     status: TicketStatus
+    status_label: str | None = None
     author_id: int
     executor_id: int | None = None
     created_at: datetime

@@ -265,10 +265,14 @@ class TicketService:
 
         if current_user.role in [UserRole.ADMIN, UserRole.DISPATCHER]:
             if new_key == TicketStatus.CANCELED.value:
+                rejection_reason = (comment or "").strip()
+                rejection_message = f"Заявка #{ticket.id} отклонена сотрудником."
+                if rejection_reason:
+                    rejection_message += f" Причина: {rejection_reason}"
                 self._notify_user_ids(
                     [ticket.author_id],
                     title="Заявка отклонена",
-                    message=f"Заявка #{ticket.id} отклонена сотрудником.",
+                    message=rejection_message,
                     notif_type="ticket_rejected",
                     ticket_id=ticket.id,
                     exclude_user_ids=[actor_id],
@@ -295,6 +299,20 @@ class TicketService:
         if not availability.within_working_hours:
             raise HTTPException(status_code=400, detail="Исполнитель сейчас вне рабочего времени")
 
+    def _priority_key(self, value) -> str:
+        if value is None:
+            return "normal"
+        if hasattr(value, "value"):
+            return str(value.value).lower()
+        return str(value).lower()
+
+    def _dispatcher_allowed_priorities(self, user: User) -> set[str] | None:
+        raw = getattr(user, "allowed_ticket_priorities", None)
+        if not raw:
+            return None
+        items = {item.strip().lower() for item in str(raw).split(",") if item.strip()}
+        return items or None
+
     def get_tickets(
         self,
         user: User,
@@ -308,6 +326,7 @@ class TicketService:
         skip: int = 0,
         **kwargs,
     ) -> List[Ticket]:
+        dispatcher_allowed_priorities = self._dispatcher_allowed_priorities(user) if user.role == UserRole.DISPATCHER else None
         if user.role in [UserRole.ADMIN, UserRole.ADMIN_ASSISTANT, UserRole.DISPATCHER, UserRole.AUDITOR]:
             tickets = self.ticket_repo.get_filtered(
                 status=status,
@@ -318,6 +337,7 @@ class TicketService:
                 limit=limit,
                 skip=skip,
                 overdue_hours=kwargs.get("overdue_hours"),
+                priorities=list(dispatcher_allowed_priorities) if dispatcher_allowed_priorities else None,
             )
         elif user.role == UserRole.EXECUTOR:
             tickets = self.ticket_repo.get_filtered(
@@ -338,6 +358,14 @@ class TicketService:
 
             if status is not None:
                 tickets = [ticket for ticket in tickets if ticket.status == status]
+
+        if user.role == UserRole.DISPATCHER:
+            if dispatcher_allowed_priorities is not None:
+                tickets = [
+                    ticket
+                    for ticket in tickets
+                    if self._priority_key(getattr(ticket, "priority", None)) in dispatcher_allowed_priorities
+                ]
 
         if priority is not None and tickets and hasattr(tickets[0], "priority"):
             priority_value = priority.value if hasattr(priority, "value") else str(priority)
@@ -588,7 +616,11 @@ class TicketService:
             if not cancel_reason:
                 raise HTTPException(status_code=400, detail="Выберите причину отмены заявки")
         else:
-            cancel_reason = None
+            cancel_reason = (payload.reason if payload else None) or ""
+            cancel_reason = cancel_reason.strip()
+            if not cancel_reason:
+                raise HTTPException(status_code=400, detail="Укажите причину отклонения заявки")
+            ensure_clean_text(cancel_reason)
             if ticket.status != TicketStatus.CREATED or ticket.executor_id is not None:
                 raise HTTPException(
                     status_code=400,
@@ -624,7 +656,7 @@ class TicketService:
             self._notify_user_ids(
                 [ticket.author_id],
                 title="Заявка отклонена",
-                message=f"Заявка #{ticket.id} отклонена сотрудником.",
+                message=f"Заявка #{ticket.id} отклонена сотрудником. Причина: {cancel_reason}",
                 notif_type="ticket_rejected",
                 ticket_id=ticket.id,
                 exclude_user_ids=[current_user.id],

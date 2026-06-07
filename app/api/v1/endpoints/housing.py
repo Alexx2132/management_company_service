@@ -90,7 +90,8 @@ def delete_house(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    _ensure_house_manager(current_user)
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Удалять дома может только администратор")
 
     service = HouseService(db)
     return service.delete_house(house_id)

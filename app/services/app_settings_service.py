@@ -1,6 +1,11 @@
-from fastapi import HTTPException
+import os
+import shutil
+import uuid
+
+from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
+from app.core.file_upload import validate_image_upload
 from app.core.profanity import ensure_clean_text
 from app.models.app_settings import AppSettings
 from app.models.user import User, UserRole
@@ -18,6 +23,7 @@ class AppSettingsService:
     DEFAULT_COMPLAINT_PRIMARY_LIMIT = 2
     MIN_COMPLAINT_PRIMARY_LIMIT = 1
     MAX_COMPLAINT_PRIMARY_LIMIT = 10
+    LOGIN_BACKGROUND_DIR = os.path.join("static", "uploads", "settings")
     DEFAULT_APP_BRAND = "UK WEB"
     DEFAULT_LOGIN_TITLE = "Вход в веб-версию"
     DEFAULT_MOBILE_LOGIN_BRAND = "Управляющая компания"
@@ -85,6 +91,46 @@ class AppSettingsService:
             service_rules_text=self.DEFAULT_SERVICE_RULES_TEXT,
         )
         self.db.add(settings)
+        self.db.commit()
+        self.db.refresh(settings)
+        return settings
+
+    def _ensure_can_manage_branding(self, current_user: User) -> None:
+        if not can_manage_service_settings(current_user):
+            raise HTTPException(status_code=403, detail="Только администратор может менять оформление входа")
+
+    def _delete_static_file(self, relative_path: str | None) -> None:
+        if not relative_path or not relative_path.startswith("/static/uploads/settings/"):
+            return
+
+        disk_path = relative_path.lstrip("/").replace("/", os.sep)
+        if os.path.exists(disk_path):
+            os.remove(disk_path)
+
+    def upload_login_background(self, file: UploadFile, current_user: User) -> AppSettings:
+        self._ensure_can_manage_branding(current_user)
+        ext, _ = validate_image_upload(file, max_size_mb=8)
+        settings = self.get_settings()
+
+        os.makedirs(self.LOGIN_BACKGROUND_DIR, exist_ok=True)
+        filename = f"login-background-{uuid.uuid4().hex}.{ext}"
+        disk_path = os.path.join(self.LOGIN_BACKGROUND_DIR, filename)
+
+        file.file.seek(0)
+        with open(disk_path, "wb") as output:
+            shutil.copyfileobj(file.file, output)
+
+        self._delete_static_file(settings.login_background_image)
+        settings.login_background_image = f"/static/uploads/settings/{filename}"
+        self.db.commit()
+        self.db.refresh(settings)
+        return settings
+
+    def clear_login_background(self, current_user: User) -> AppSettings:
+        self._ensure_can_manage_branding(current_user)
+        settings = self.get_settings()
+        self._delete_static_file(settings.login_background_image)
+        settings.login_background_image = None
         self.db.commit()
         self.db.refresh(settings)
         return settings

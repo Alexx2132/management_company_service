@@ -1,21 +1,23 @@
-import enum
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, Enum, DateTime, Boolean
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
 
 
-class HouseEventType(str, enum.Enum):
-    PLANNED_OUTAGE = "planned_outage"
-    PLANNED_WORK = "planned_work"
+class HouseInfoType(Base):
+    __tablename__ = "house_info_types"
+    __table_args__ = (
+        UniqueConstraint("type_group", "code", name="uq_house_info_type_group_code"),
+    )
 
-
-class HouseScheduleType(str, enum.Enum):
-    CLEANING = "cleaning"
-    INSPECTION = "inspection"
-    MAINTENANCE = "maintenance"
+    id = Column(Integer, primary_key=True, index=True)
+    type_group = Column(String(32), nullable=False, index=True)
+    code = Column(String(64), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
 class HouseEvent(Base):
@@ -27,7 +29,7 @@ class HouseEvent(Base):
 
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    event_type = Column(Enum(HouseEventType), nullable=False)
+    event_type = Column(String(64), nullable=False)
     starts_at = Column(DateTime, nullable=False)
     ends_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
@@ -65,7 +67,7 @@ class HouseSchedule(Base):
 
     title = Column(String, nullable=False)
     description = Column(Text, nullable=True)
-    schedule_type = Column(Enum(HouseScheduleType), nullable=False)
+    schedule_type = Column(String(64), nullable=False)
     starts_at = Column(DateTime, nullable=True)
     ends_at = Column(DateTime, nullable=True)
     start_time = Column(String(8), nullable=True)
