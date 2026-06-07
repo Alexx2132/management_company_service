@@ -1,0 +1,13 @@
+/venv/
+/.env
+.env
+.idea
+ukapp-f04b2-firebase-adminsdk-fbsvc-39f54db940.json
+/static/
+__pycache__/
+*.pyc
+*.pyo
+*.log
+uploads/
+media/
+*.sqlite3
