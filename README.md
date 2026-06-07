@@ -8,7 +8,7 @@
 ![Firebase](https://img.shields.io/badge/Firebase-Push_notifications-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)
 ![WebSocket](https://img.shields.io/badge/WebSocket-Realtime-2563EB?style=for-the-badge)
 
-**Management Company Service** — backend-часть информационной системы управляющей компании для учета проблем в сфере ЖКХ, обработки заявок жителей и координации работы сотрудников.
+**Management Company Service** —  информационная система управляющей компании для учета проблем в сфере ЖКХ, обработки заявок жителей и координации работы сотрудников.
 
 Проект разработан в рамках выпускной квалификационной работы на тему:
 
