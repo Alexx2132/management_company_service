@@ -1,5 +1,6 @@
 import asyncio
 import bcrypt
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from jose import jwt
@@ -40,7 +41,23 @@ def get_password_hash(password: str) -> str:
     return hashed_bytes.decode('utf-8')
 
 
-def create_access_token(subject: str | Any) -> str:
+def generate_temporary_password() -> str:
+    return secrets.token_urlsafe(18)
+
+
+def revoke_user_sessions(db, user) -> None:
+    from sqlalchemy import update
+    from app.models.user import User
+    from app.models.push_device_token import PushDeviceToken
+
+    # Инкремент выполняется в БД, чтобы параллельные сбросы не теряли отзыв сессии.
+    db.execute(update(User).where(User.id == user.id).values(session_version=User.session_version + 1))
+    db.query(PushDeviceToken).filter(PushDeviceToken.user_id == user.id).update(
+        {PushDeviceToken.is_active: False}, synchronize_session=False,
+    )
+
+
+def create_access_token(subject: str | Any, session_version: int = 0) -> str:
     """
     Генерирует JWT.
     Аргумент expires_delta убран, время берется строго из настроек.
@@ -54,7 +71,8 @@ def create_access_token(subject: str | Any) -> str:
         "sub": str(subject),
         "exp": expire,
         "iat": now,
-        "nbf": now
+        "nbf": now,
+        "ver": session_version,
     }
 
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

@@ -10,7 +10,7 @@ from app.core.auth_validation import (
     validate_login_value,
     validate_password_value,
 )
-from app.core.security import get_password_hash, verify_password
+from app.core.security import get_password_hash, verify_password, revoke_user_sessions
 from app.models.executor import ExecutorProfile
 from app.models.location import Apartment
 from app.models.user import User, UserChangeHistory, UserRole
@@ -296,9 +296,12 @@ class UserService:
 
         if not verify_password(old_password, user.password_hash):
             raise HTTPException(status_code=400, detail="Incorrect old password")
+        if new_password == old_password:
+            raise HTTPException(status_code=400, detail="Новый пароль должен отличаться от текущего")
 
         user.password_hash = get_password_hash(validate_password_value(new_password))
         user.must_change_password = False
+        revoke_user_sessions(self.user_repo.db, user)
         self.user_repo.db.commit()
         return {"status": "password updated"}
 

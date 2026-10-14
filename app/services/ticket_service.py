@@ -8,6 +8,7 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.auth_validation import validate_contact_phone_value
+from app.core.file_upload import validate_image_upload
 from app.core.profanity import ensure_clean_text
 from app.models.category import Category
 from app.models.executor import ExecutorProfile
@@ -789,7 +790,10 @@ class TicketService:
             if ticket.status != TicketStatus.IN_PROGRESS:
                 raise HTTPException(status_code=400, detail="Фотоотчёт можно прикрепить только по заявке в работе")
 
-        file_ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
+        file_ext, _ = validate_image_upload(file)
+        self.db.query(Ticket.id).filter(Ticket.id == ticket.id).with_for_update().one()
+        if self.db.query(TicketFile).filter(TicketFile.ticket_id == ticket.id).count() >= 10:
+            raise HTTPException(status_code=400, detail="К заявке можно прикрепить не более 10 фотографий")
         unique_name = f"{uuid.uuid4()}.{file_ext}"
 
         dir_path = os.path.join("static", "uploads", "tickets", str(ticket.id))

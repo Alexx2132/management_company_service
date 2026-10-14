@@ -5,11 +5,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.api.v1.router import router as api_router
+from app.api.attachments import router as attachment_router, PublicBackgrounds
 from app.core.config import settings
 from app.db.session import engine
 from app.services.live_update_hub import live_update_hub
@@ -40,7 +40,9 @@ app.add_middleware(
 
 UPLOAD_DIR = "static/uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.include_router(attachment_router)
+os.makedirs("static/uploads/settings", exist_ok=True)
+app.mount("/static/uploads/settings", PublicBackgrounds(directory="static/uploads/settings"), name="public-backgrounds")
 
 
 @app.get("/ping")

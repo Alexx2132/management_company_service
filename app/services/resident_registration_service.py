@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth_validation import validate_contact_phone_value, validate_login_value, validate_password_value
 from app.core.profanity import ensure_clean_text
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, generate_temporary_password
 from app.models.location import Apartment, House
 from app.models.resident_registration import ResidentRegistrationRequest
 from app.models.user import User, UserRole
@@ -25,7 +25,6 @@ class ResidentRegistrationService:
     STATUS_OPEN = "open"
     STATUS_APPROVED = "approved"
     STATUS_REJECTED = "rejected"
-    DEFAULT_TEMPORARY_PASSWORD = "pass123"
 
     def __init__(self, db: Session):
         self.db = db
@@ -198,7 +197,7 @@ class ResidentRegistrationService:
         _, apartment = self._resolve_location(request_obj.house_id, request_obj.apartment_id)
         self._ensure_apartment_accepts_resident(apartment.id)
 
-        temporary_password = validate_password_value((payload.temporary_password or "").strip() or self.DEFAULT_TEMPORARY_PASSWORD)
+        temporary_password = validate_password_value((payload.temporary_password or "").strip() or generate_temporary_password())
         user = User(
             full_name=request_obj.full_name,
             login=request_obj.login,

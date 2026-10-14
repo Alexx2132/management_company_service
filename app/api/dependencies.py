@@ -1,5 +1,6 @@
 from typing import AsyncIterator
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
+from urllib.parse import unquote
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy import select
@@ -20,10 +21,14 @@ async def get_db() -> AsyncIterator[AsyncSession]:
         yield db
 
 
-async def get_current_user(
+async def get_authenticated_user(
         token: str = Depends(oauth2_scheme),
         db: AsyncSession = Depends(get_db)
 ) -> User:
+    return await authenticate_token(token, db)
+
+
+async def authenticate_token(token: str, db: AsyncSession) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Сессия истекла или недействительна. Войдите снова.",
@@ -46,7 +51,28 @@ async def get_current_user(
 
     user = await db.scalar(select(User).where(User.id == numeric_user_id))
 
-    if user is None:
+    if user is None or payload.get("ver", 0) != user.session_version:
         raise credentials_exception
 
     return user
+
+
+def require_password_changed(user: User) -> User:
+    if user.must_change_password:
+        raise HTTPException(status_code=403, detail={
+            "code": "password_change_required",
+            "message": "Перед продолжением работы смените временный пароль",
+        })
+    return user
+
+
+async def get_current_user(user: User = Depends(get_authenticated_user)) -> User:
+    return require_password_changed(user)
+
+
+async def get_file_user(request: Request, db: AsyncSession = Depends(get_db)) -> User:
+    # Cookie разрешена только для чтения изображений из браузера, не для операций записи.
+    authorization = request.headers.get("authorization", "")
+    token = authorization[7:] if authorization.lower().startswith("bearer ") else ""
+    token = token or unquote(request.cookies.get("uk_token", "")).strip().strip('"')
+    return require_password_changed(await authenticate_token(token, db))

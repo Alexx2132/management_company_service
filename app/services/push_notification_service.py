@@ -122,7 +122,7 @@ class PushNotificationService:
         payload_data.setdefault("title", title or "")
         payload_data.setdefault("message", message or "")
 
-        token_data = [(obj.id, obj.token) for obj in tokens]
+        token_data = [(obj.id, obj.token, obj.user_id) for obj in tokens]
         if self.db.get_bind().dialect.is_async:
             self.db.info.setdefault("pending_push_deliveries", []).append((token_data, payload_data))
             return
@@ -135,17 +135,17 @@ class PushNotificationService:
             self.db.commit()
 
     @staticmethod
-    def _send_payload(tokens: list[tuple[int, str]], payload_data: dict) -> list[int]:
+    def _send_payload(tokens: list[tuple[int, str, int]], payload_data: dict) -> list[int]:
         with _firebase_lock:
             messaging = PushNotificationService._get_firebase_messaging()
         if messaging is None:
             return []
         invalid_ids = []
-        for token_id, token in tokens:
+        for token_id, token, user_id in tokens:
             try:
                 firebase_message = messaging.Message(
                     token=token,
-                    data=payload_data,
+                    data={**payload_data, "recipient_user_id": str(user_id)},
                     android=messaging.AndroidConfig(
                         priority="high",
                     ),
@@ -159,7 +159,7 @@ class PushNotificationService:
         return invalid_ids
 
     @staticmethod
-    async def _deliver_async(tokens: list[tuple[int, str]], payload: dict) -> None:
+    async def _deliver_async(tokens: list[tuple[int, str, int]], payload: dict) -> None:
         from app.db.session import SessionLocal
 
         try:

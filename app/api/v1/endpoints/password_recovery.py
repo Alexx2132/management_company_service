@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user, get_db
 from app.models.user import User
 from app.schemas.password_recovery import (
+    PasswordRecoveryAccepted,
     PasswordRecoveryCreate,
     PasswordRecoveryDecision,
     PasswordRecoveryApartmentOption,
@@ -45,16 +46,17 @@ async def list_password_recovery_apartments(
     return await run_db(db, operation, list[PasswordRecoveryApartmentOption])
 
 
-@router.post("/requests", response_model=PasswordRecoveryResponse)
+@router.post("/requests", response_model=PasswordRecoveryAccepted, status_code=202)
 async def create_password_recovery_request(
     payload: PasswordRecoveryCreate,
     db: AsyncSession = Depends(get_db),
 ):
     def operation(db: Session):
         service = PasswordRecoveryService(db)
-        return service.create_request(payload)
+        service.create_request(payload)
+        return PasswordRecoveryAccepted()
 
-    return await run_db(db, operation, PasswordRecoveryResponse)
+    return await run_db(db, operation, PasswordRecoveryAccepted)
 
 
 @router.get("/requests", response_model=list[PasswordRecoveryResponse])

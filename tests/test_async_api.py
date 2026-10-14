@@ -12,7 +12,7 @@ from pathlib import Path
 import httpx
 import uvicorn
 from websockets.asyncio.client import connect
-from sqlalchemy import inspect, select, text
+from sqlalchemy import delete, inspect, select, text
 
 from app.cli.create_admin import create_admin
 from app.core.config import settings
@@ -22,6 +22,7 @@ from app.db.operations import run_db
 from app.db.session import SessionLocal, engine
 from app.main import app
 from app.models.user import User, UserRole
+from app.models.auth_rate_limit import AuthRateLimit
 from app.services.live_update_hub import live_update_hub
 
 
@@ -29,6 +30,9 @@ from app.services.live_update_hub import live_update_hub
 class AsyncDatabaseTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.assertTrue(settings.POSTGRES_DB.endswith("_test"), "Tests require an isolated database ending in _test")
+        async with SessionLocal() as db:
+            await db.execute(delete(AuthRateLimit))
+            await db.commit()
         self.lifespan = app.router.lifespan_context(app)
         await self.lifespan.__aenter__()
         self.client = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver")
@@ -84,7 +88,7 @@ class AsyncDatabaseTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(engine.pool.checkedout(), 0)
                 await websocket.send("ping")
                 self.assertEqual(await asyncio.wait_for(websocket.recv(), timeout=2), "pong")
-                await live_update_hub.broadcast({"event": "test-update"})
+                await live_update_hub.broadcast({"entity": "notification", "user_id": admin_id, "event": "test-update"})
                 self.assertIn("test-update", await asyncio.wait_for(websocket.recv(), timeout=2))
         finally:
             server.should_exit = True

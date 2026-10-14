@@ -24,8 +24,8 @@ def validate_password_value(password: str | None) -> str:
     value = str(password or "")
     if not value:
         raise HTTPException(status_code=400, detail="Введите пароль")
-    if len(value) < 3:
-        raise HTTPException(status_code=400, detail="Пароль должен содержать не менее 3 символов")
+    if len(value) < 12:
+        raise HTTPException(status_code=400, detail="Пароль должен содержать не менее 12 символов")
     if len(value.encode("utf-8")) > 72:
         raise HTTPException(status_code=400, detail="Пароль должен содержать не более 72 байт")
     if CYRILLIC_RE.search(value):

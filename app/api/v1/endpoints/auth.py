@@ -3,12 +3,13 @@ from app.db.operations import run_db
 
 from inspect import signature
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_db
 from app.core.security import create_access_token
+from app.core.rate_limit import consume_auth_attempt
 from app.services.user_service import UserService
 
 router = APIRouter()
@@ -52,9 +53,12 @@ def _call_authenticate(user_service: UserService, identifier: str, password: str
 
 @router.post("/login")
 async def login_access_token(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
 ):
+    await consume_auth_attempt("login-ip", request.client.host if request.client else "unknown", 60, 60)
+    await consume_auth_attempt("login-account", form_data.username.strip().casefold(), 10, 300)
     def operation(db: Session):
         user_service = UserService(db)
 
@@ -71,7 +75,7 @@ async def login_access_token(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        access_token = create_access_token(subject=str(user.id))
+        access_token = create_access_token(subject=str(user.id), session_version=user.session_version)
         return {
             "access_token": access_token,
             "token_type": "bearer"

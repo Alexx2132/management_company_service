@@ -44,6 +44,7 @@ class User(Base):
     banned_until = Column(DateTime, nullable=True)
     ban_reason = Column(Text, nullable=True)
     must_change_password = Column(Boolean, nullable=False, default=False)
+    session_version = Column(Integer, nullable=False, default=0, server_default="0")
     blocks_apartment_resident_additions = Column(Boolean, nullable=False, default=False)
 
     house = relationship("House", back_populates="users")

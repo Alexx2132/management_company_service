@@ -16,6 +16,10 @@ class PasswordRecoveryCreate(BaseModel):
     message: str | None = Field(default=None, max_length=1000)
 
 
+class PasswordRecoveryAccepted(BaseModel):
+    message: str = "Если данные относятся к зарегистрированному пользователю, запрос будет рассмотрен"
+
+
 class PasswordRecoveryHouseOption(BaseModel):
     id: int
     city: str | None = None

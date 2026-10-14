@@ -1,6 +1,4 @@
 from datetime import datetime, timedelta
-import secrets
-import string
 
 from fastapi import HTTPException
 from sqlalchemy import or_
@@ -8,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from app.core.auth_validation import validate_contact_phone_value, validate_login_value, validate_password_value
 from app.core.profanity import ensure_clean_text
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, generate_temporary_password, revoke_user_sessions
 from app.models.app_settings import AppSettings
 from app.models.location import Apartment, House
 from app.models.password_recovery import PasswordRecoveryRequest
@@ -28,7 +26,6 @@ class PasswordRecoveryService:
     STATUS_RESET = "reset"
     STATUS_REJECTED = "rejected"
     VERIFIED_STATUSES = {"phone_match", "address_match", "phone_mismatch_address_match"}
-    DEFAULT_TEMPORARY_PASSWORD = "pass123"
 
     def __init__(self, db: Session):
         self.db = db
@@ -61,13 +58,6 @@ class PasswordRecoveryService:
             notif_type="password_recovery_request",
             extra_data={"password_recovery_request_id": request_obj.id},
         )
-
-    def _generate_temporary_password(self) -> str:
-        alphabet = string.ascii_letters + string.digits
-        while True:
-            password = "".join(secrets.choice(alphabet) for _ in range(10))
-            if any(ch.islower() for ch in password) and any(ch.isupper() for ch in password) and any(ch.isdigit() for ch in password):
-                return password
 
     def list_house_options(self, query: str | None = None, limit: int = 50) -> list[House]:
         q = self.db.query(House)
@@ -223,12 +213,15 @@ class PasswordRecoveryService:
             raise HTTPException(status_code=400, detail="Request is already processed")
         if not request_obj.matched_user:
             raise HTTPException(status_code=400, detail="User for this request was not found")
+        if current_user.role != UserRole.ADMIN and request_obj.matched_user.role != UserRole.RESIDENT:
+            raise HTTPException(status_code=403, detail="Помощник может восстанавливать доступ только жителям")
         if request_obj.verification_status not in self.VERIFIED_STATUSES:
             raise HTTPException(status_code=400, detail=request_obj.verification_note)
 
-        temporary_password = validate_password_value((payload.temporary_password or "").strip() or self.DEFAULT_TEMPORARY_PASSWORD)
+        temporary_password = validate_password_value((payload.temporary_password or "").strip() or generate_temporary_password())
         request_obj.matched_user.password_hash = get_password_hash(temporary_password)
         request_obj.matched_user.must_change_password = True
+        revoke_user_sessions(self.db, request_obj.matched_user)
         request_obj.status = self.STATUS_RESET
         request_obj.processed_by_id = current_user.id
         request_obj.processed_at = datetime.utcnow()

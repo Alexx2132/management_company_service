@@ -23,3 +23,4 @@ from app.models.ban_appeal import BanConversation, BanMessage
 from app.models.message import Message, MessageConversation, MessageFile, MessageParticipant
 from app.models.password_recovery import PasswordRecoveryRequest
 from app.models.resident_registration import ResidentRegistrationRequest
+from app.models.auth_rate_limit import AuthRateLimit

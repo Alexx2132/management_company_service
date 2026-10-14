@@ -7,6 +7,7 @@ from fastapi import HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from app.core.profanity import ensure_clean_text
+from app.core.file_upload import validate_image_upload
 from app.models.history import TicketHistory
 from app.models.ticket import Ticket, TicketStatus
 from app.models.ticket_complaint import (
@@ -532,7 +533,10 @@ class TicketComplaintService:
         if user.role == UserRole.RESIDENT:
             self.ticket_service._ensure_resident_not_banned(user)
 
-        file_ext = file.filename.split(".")[-1] if file.filename and "." in file.filename else "jpg"
+        file_ext, _ = validate_image_upload(file)
+        self.db.query(TicketComplaint.id).filter(TicketComplaint.id == complaint.id).with_for_update().one()
+        if self.db.query(ComplaintFile).filter(ComplaintFile.complaint_id == complaint.id).count() >= 4:
+            raise HTTPException(status_code=400, detail="К жалобе можно прикрепить не более 4 фотографий")
         unique_name = f"{uuid.uuid4()}.{file_ext}"
 
         dir_path = os.path.join("static", "uploads", "complaints", str(complaint.id))

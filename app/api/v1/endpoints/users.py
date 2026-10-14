@@ -6,7 +6,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
-from app.api.dependencies import get_current_user, get_db
+from app.api.dependencies import get_authenticated_user, get_current_user, get_db
 from app.models.executor import ExecutorProfile, ExecutorSpecialty
 from app.models.location import Apartment
 from app.models.user import User, UserChangeHistory, UserRole
@@ -61,7 +61,7 @@ async def create_user(
 async def change_password(
         password_data: UserChangePassword,
         db: AsyncSession = Depends(get_db),
-        current_user: User = Depends(get_current_user)
+        current_user: User = Depends(get_authenticated_user)
 ):
     def operation(db: Session):
         service = UserService(db)
@@ -77,7 +77,7 @@ async def change_password(
 @router.get("/me", response_model=UserResponse)
 async def read_users_me(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_authenticated_user),
 ):
     def operation(db: Session):
         if (

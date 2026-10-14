@@ -3,13 +3,13 @@ from app.db.operations import run_db
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import datetime
 
 from app.api.dependencies import get_db, get_current_user
-from app.core.profanity import ensure_clean_text
 from app.models.user import User, UserRole
-from app.models.complaint import TicketComplaint, ComplaintStatus
+from app.models.complaint import ComplaintStatus
 from app.schemas.complaint import TicketComplaintResponse, ComplaintResolve
+from app.schemas.ticket_complaint import TicketComplaintResolve
+from app.services.ticket_complaint_service import TicketComplaintService
 
 router = APIRouter()
 
@@ -29,11 +29,7 @@ async def list_complaints(
         """Список всех жалоб (для диспетчера/аудитора/админа)."""
         _ensure_staff(current_user)
 
-        q = db.query(TicketComplaint)
-        if status is not None:
-            q = q.filter(TicketComplaint.status == status)
-
-        return q.order_by(TicketComplaint.created_at.desc()).limit(500).all()
+        return TicketComplaintService(db).list_complaints(current_user, status=status, limit=500)
 
     return await run_db(db, operation, list[TicketComplaintResponse])
 
@@ -49,19 +45,8 @@ async def resolve_complaint(
         """Закрыть/отклонить жалобу (диспетчер/админ/аудитор)."""
         _ensure_staff(current_user)
 
-        complaint = db.query(TicketComplaint).filter(TicketComplaint.id == complaint_id).first()
-        if not complaint:
-            raise HTTPException(status_code=404, detail="Complaint not found")
-
-        ensure_clean_text(data.resolution_comment)
-
-        complaint.status = data.status
-        complaint.resolution_comment = data.resolution_comment
-        complaint.resolver_id = current_user.id
-        complaint.resolved_at = datetime.utcnow()
-
-        db.commit()
-        db.refresh(complaint)
-        return complaint
+        return TicketComplaintService(db).resolve(
+            complaint_id, TicketComplaintResolve(**data.model_dump()), current_user,
+        )
 
     return await run_db(db, operation, TicketComplaintResponse)
